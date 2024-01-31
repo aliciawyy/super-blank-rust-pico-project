@@ -24,7 +24,7 @@ use rp2040_hal as hal;
 use hal::pac;
 
 // Some traits we need
-use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::v2::{InputPin, OutputPin};
 use rp2040_hal::clocks::Clock;
 
 /// The linker will place this boot block at the start of our program image. We
@@ -55,6 +55,17 @@ fn main() -> ! {
     // Set up the watchdog driver - needed by the clock setup code
     let mut watchdog = hal::Watchdog::new(pac.WATCHDOG);
 
+    // The single-cycle I/O block controls our GPIO pins
+    let sio = hal::Sio::new(pac.SIO);
+
+    // Set the pins to their default state
+    let pins = hal::gpio::Pins::new(
+        pac.IO_BANK0,
+        pac.PADS_BANK0,
+        sio.gpio_bank0,
+        &mut pac.RESETS,
+    );
+
     // Configure the clocks
     let clocks = hal::clocks::init_clocks_and_plls(
         XTAL_FREQ_HZ,
@@ -70,24 +81,30 @@ fn main() -> ! {
 
     let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
 
-    // The single-cycle I/O block controls our GPIO pins
-    let sio = hal::Sio::new(pac.SIO);
+    // Configure GPIO 0 as an output
+    let mut out_pin = pins.gpio0.into_push_pull_output();
 
-    // Set the pins to their default state
-    let pins = hal::gpio::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    // Configure GPIO 4 as an input
+    let in_pin = pins.gpio4.into_pull_down_input();
+    let mut toggle_button = false;
 
-    // Configure GPIO25 as an output
-    let mut led_pin = pins.gpio25.into_push_pull_output();
+    // Output is the opposite of the input
     loop {
-        led_pin.set_high().unwrap();
-        delay.delay_ms(500);
-        led_pin.set_low().unwrap();
-        delay.delay_ms(500);
+        // in_pin.is_high() = button is pressed down
+        if in_pin.is_high().unwrap() {
+            toggle_button = true;
+        }
+        if toggle_button {
+            for _ in 0..5 {
+                out_pin.set_high().unwrap();
+                delay.delay_ms(400);
+                out_pin.set_low().unwrap();
+                delay.delay_ms(400);
+            }
+            toggle_button = false;
+        } else {
+            out_pin.set_high().unwrap();
+        }
     }
 }
 
