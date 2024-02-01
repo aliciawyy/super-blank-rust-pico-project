@@ -24,7 +24,7 @@ use rp2040_hal as hal;
 use hal::pac;
 
 // Some traits we need
-use embedded_hal::{digital::v2::{InputPin, OutputPin}, PwmPin};
+use embedded_hal::digital::v2::{InputPin, OutputPin};
 use rp2040_hal::clocks::Clock;
 
 /// The linker will place this boot block at the start of our program image. We
@@ -34,12 +34,6 @@ use rp2040_hal::clocks::Clock;
 #[link_section = ".boot2"]
 #[used]
 pub static BOOT2: [u8; 256] = rp2040_boot2::BOOT_LOADER_GENERIC_03H;
-
-/// The minimum PWM value (i.e. LED brightness) we want
-const LOW: u16 = 0;
-
-/// The maximum PWM value (i.e. LED brightness) we want
-const HIGH: u16 = 25000;
 
 /// External high-speed crystal on the Raspberry Pi Pico board is 12 MHz. Adjust
 /// if your board has a different frequency
@@ -90,18 +84,6 @@ fn main() -> ! {
     // Configure GPIO 0 as an output
     let mut out_pin = pins.gpio0.into_push_pull_output();
 
-    // Init PWMs
-    let mut pwm_slices = hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
-
-    // Configure PWM4
-    let pwm = &mut pwm_slices.pwm4;
-    pwm.set_ph_correct();
-    pwm.enable();
-
-    // Output channel B on PWM4 to GPIO 25
-    let channel = &mut pwm.channel_b;
-    channel.output_to(pins.gpio25);
-
     // Configure GPIO 4 as an input
     let in_pin = pins.gpio4.into_pull_down_input();
     let mut toggle_button = false;
@@ -122,20 +104,6 @@ fn main() -> ! {
             toggle_button = false;
         } else {
             out_pin.set_high().unwrap();
-            let duty_step = channel.get_max_duty() / HIGH;
-            // Ramp brightness up
-            for i in LOW..=HIGH {
-                delay.delay_us(10);
-                channel.set_duty(duty_step * i);
-            }
-
-            // Ramp brightness down
-            for i in (LOW..=HIGH).rev() {
-                delay.delay_us(10);
-                channel.set_duty(duty_step * i);
-            }
-
-            delay.delay_ms(500);
         }
     }
 }
